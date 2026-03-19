@@ -1,12 +1,12 @@
 module.exports = {
-  BOT_TOKEN: "YOUR-BOT-TOKEN-HERE",
+  BOT_TOKEN: "7387717029:AAF_HQ6rOXxjT0VSyANiwqoWYREXuaO03C0",
 
   BOT_SETTINGS: {
-    NAME: "𝄞⋆⃝🧚‍𝐌𝐂𝐒-𝐁𝐎𝐓🧚‍⋆⃝𝄞",
+    NAME: "𝄞⋆⃝𝐁𝐎𝐓🧚‍⋆⃝𝄞",
     VERSION: "2.5.0-VIP",
     PREFIX: "/",
-    ADMINS: ["6954597258"],
-    CREDIT: "MOHAMMAD BADOL",
+    ADMINS: ["8378935950"],
+    CREDIT: "Rakib",
     FOOTER: "© 𝟐𝟎𝟐𝟔 𝐌𝐂𝐒 𝐁𝐎𝐓 𝐏𝐑𝐎𝐉𝐄𝐂𝐓"
   },
 
