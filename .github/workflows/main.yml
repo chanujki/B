@@ -1,4 +1,4 @@
-name: MCS-BOT
+name: MCS-BOT 
 
 on:
   push:
