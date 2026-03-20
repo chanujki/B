@@ -1,130 +1,106 @@
 const axios = require("axios");
 
-module.exports.config = {
-  name: "bot",
-  credits: "MOHAMMAD-BADOL",
-  aliases: ["sim"],
-  prefix: true, 
-  permission: 0,
-  description: "AI Chat using Simsimi API with conversation mode.",
-  tags: ["ai", "chat"]
+// গ্লোবাল স্টোরেজ
+if (!global.activeReplies) global.activeReplies = {};
+if (!global.cooldowns) global.cooldowns = {};
+
+module.exports = {
+    config: {
+        name: "bot",
+        author: "MOHAMMAD-BADOL",
+        version: "2.5.1",
+        aliases: ["baby", "বট"], 
+        category: "fun",
+        description: "AI Chat - All Triggers Fixed, No Double Reply, All Greetings Restored.",
+        prefix: false,
+        role: 0,
+        countDown: 5
+    },
+
+    run: async (bot, msg, args) => {
+        const usermsg = args.join(" ");
+        if (!usermsg) return await sendGreetingAndSetHandler(bot, msg);
+        await handleAIChat(bot, msg, usermsg);
+    },
+
+    handleMessage: async (bot, msg) => {
+        if (!msg.text || msg.from.is_bot) return;
+        const text = msg.text.trim();
+        const lowerText = text.toLowerCase();
+        const triggerWords = ["bot", "বট", "baby"];
+
+        // ১. Cooldown Check
+        const now = Date.now();
+        if (global.cooldowns[msg.from.id] && now < global.cooldowns[msg.from.id] + 5000) return;
+
+        // ২. কন্টিনিউয়াস রিপ্লাই চেক
+        if (msg.reply_to_message && global.activeReplies[msg.reply_to_message.message_id]) {
+            global.cooldowns[msg.from.id] = now;
+            return await handleAIChat(bot, msg, text);
+        }
+
+        // ৩. সব ট্রিগার চেক (bot, বট, baby)
+        for (const word of triggerWords) {
+            if (lowerText.startsWith(word + " ")) {
+                const usermsg = text.substring(word.length + 1).trim();
+                if (usermsg) {
+                    global.cooldowns[msg.from.id] = now;
+                    return await handleAIChat(bot, msg, usermsg);
+                }
+            }
+        }
+    }
 };
 
-const SIM_API_URL = "http://65.109.80.126:20392/sim";
-
-function getRandomGreeting() {
-    const greetings = [
-        "আহ শুনা আমার তোমার অলিতে গলিতে উম্মাহ😇😘",
-        "কি গো সোনা আমাকে ডাকছ কেনো",
-        "বার বার আমাকে ডাকস কেন😡",
-        "আহ শোনা আমার আমাকে এতো ডাকতাছো কেনো আসো বুকে আশো🥱",
-        "হুম জান তোমার অইখানে উম্মমাহ😷😘",
-        "আসসালামু আলাইকুম বলেন আপনার জন্য কি করতে পারি",
-        "আমাকে এতো না ডেকে বস নয়নকে একটা গফ দে 🙄"
-    ];
-    return greetings[Math.floor(Math.random() * greetings.length)];
-}
+// --- হেল্পার ফাংশনসমূহ ---
 
 async function sendGreetingAndSetHandler(bot, msg) {
-    const chatId = msg.chat.id;
-    const messageId = msg.message_id;
+    const name = msg.from.first_name;
+    // Admin লাইনটি রিমুভ করা হয়েছে
+    const statusMsg = `<b>Hey ${name}</b>\n\n${getRandomGreeting()}`;
 
-    const sentMessage = await bot.sendMessage(
-        chatId,
-        getRandomGreeting(),
-        { reply_to_message_id: messageId }
-    );
+    const sentMessage = await bot.sendMessage(msg.chat.id, statusMsg, { 
+        reply_to_message_id: msg.message_id,
+        parse_mode: "HTML"
+    });
 
-    if (!global.activeReplies) global.activeReplies = {};
-    
-    global.activeReplies[sentMessage.message_id] = {
-        command: "bot", 
-        authorId: msg.from.id, 
-        chatId: chatId, 
-        expires: Date.now() + 60000 
-    };
+    saveReply(sentMessage.message_id);
 }
 
 async function handleAIChat(bot, msg, usermsg) {
-    const chatId = msg.chat.id;
-    const messageId = msg.message_id;
-    
-    if (!usermsg) {
-        return sendGreetingAndSetHandler(bot, msg);
-    }
-    
     try {
-        const response = await axios.get(
-            `${SIM_API_URL}?type=ask&ask=${encodeURIComponent(usermsg)}`
-        );
-
-        const replyText = response.data.data?.msg || "🤖 আমি বুঝতে পারিনি, বা API রেসপন্স দেয়নি।";
-
-        const sentMessage = await bot.sendMessage(
-            chatId, 
-            replyText, 
-            { reply_to_message_id: messageId }
-        );
-
-        if (!global.activeReplies) global.activeReplies = {};
+        await bot.sendChatAction(msg.chat.id, 'typing');
+        const base = await axios.get("https://raw.githubusercontent.com/MOHAMMAD-NAYAN-07/Nayan/main/api.json");
+        const apiUrl = base.data.sim;
+        const response = await axios.get(`${apiUrl}/sim?type=ask&ask=${encodeURIComponent(usermsg)}&senderID=${msg.from.id}`);
         
-        global.activeReplies[sentMessage.message_id] = {
-            command: "bot", 
-            authorId: msg.from.id, 
-            chatId: chatId, 
-            expires: Date.now() + 60000 
-        };
-        
+        const replyText = response.data.data?.msg || "🤖 সরি জান, উত্তর দিতে পারছিনা।";
+        const sentMessage = await bot.sendMessage(msg.chat.id, replyText, { 
+            reply_to_message_id: msg.message_id 
+        });
+
+        saveReply(sentMessage.message_id);
     } catch (err) {
-        console.error("❌ Simsimi API error:", err.message);
-        
-        return bot.sendMessage(
-            chatId, 
-            "⚠️ এআই বর্তমানে ব্যস্ত অথবা কাজ করছে না।",
-            { reply_to_message_id: messageId }
-        );
+        console.log("API Error");
     }
 }
 
+function saveReply(messageId) {
+    global.activeReplies[messageId] = true;
+}
 
-module.exports.run = async (bot, msg) => {
-    const commandName = msg.text.split(" ")[0].toLowerCase().replace(global.PREFIX, "");
-    const usermsg = msg.text.substring(msg.text.indexOf(commandName) + commandName.length).trim();
-    
-    if (!usermsg) {
-        return sendGreetingAndSetHandler(bot, msg);
-    }
-
-    await handleAIChat(bot, msg, usermsg);
-};
-
-module.exports.handleMessage = async (bot, msg) => {
-    const text = msg.text ? msg.text.trim() : "";
-
-    if (!text) return; 
-
-    if (msg.reply_to_message && global.activeReplies) {
-        const repliedToMsgId = msg.reply_to_message.message_id;
-        const replyHandler = global.activeReplies[repliedToMsgId];
-        
-        if (replyHandler && replyHandler.command === "bot") {
-            delete global.activeReplies[repliedToMsgId]; 
-            
-            return handleAIChat(bot, msg, text);
-        }
-    }
-
-    if (text.toLowerCase() === "bot") {
-        return sendGreetingAndSetHandler(bot, msg);
-    }
-    
-    if (text.toLowerCase().startsWith("bot ")) {
-        const usermsg = text.substring(4).trim(); 
-        
-        if (!usermsg) {
-             return sendGreetingAndSetHandler(bot, msg);
-        }
-
-        await handleAIChat(bot, msg, usermsg);
-    }
-};
+function getRandomGreeting() {
+    // এখানে আপনার আগের সব মেসেজ লিস্ট আবার দিয়ে দেওয়া হলো
+    const greetings = [
+        "বেশি bot bot করলে চুম্মা দিয়া তোমার কিডনি ব্লক করে দেবো😒",
+        "শুনবো না😼তুমি আমাকে প্রেম করাই দাও নাই🥺পচা তুমি🥺",
+        "আমি আবাল দের সাথে কথা বলি না,ok😒",
+        "দিনশেষে পরের Bow সুন্দর-☹",
+        "আপনার সুন্দরী বান্ধুবীকে ফিতরা হিসেবে আমার বস মোহাম্মদ বাদল চৌধুরী কে দান করেন-🥱",
+        "জান তুমি শুধু আমার আমি তোমারে ৩৬৫ দিন ভালোবাসি-💝🌺😽",
+        "আমি এখন বস বাদল এর সাথে ব্যাস্ত, ডাকবেন না 😏",
+        "তোমারে প্রচুর ভাল্লাগে–সময় মতো প্রপোজ করমু 😼",
+        "দূরে যা, তোর কোনো কাজ নাই, শুধু bot bot করিস 🤣"
+    ];
+    return greetings[Math.floor(Math.random() * greetings.length)];
+}
